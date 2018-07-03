@@ -34,6 +34,8 @@ import json
 import datetime
 import numpy as np
 import skimage.draw
+import time
+import cv2
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath("../../")
@@ -215,13 +217,41 @@ def color_splash(image, mask):
     # has 3 RGB channels, though.
     gray = skimage.color.gray2rgb(skimage.color.rgb2gray(image)) * 255
     # Copy color pixels from the original color image where mask is set
-    if mask.shape[-1] > 0:
+    if mask.shape[-1] > 0: 
         # We're treating all instances as one, so collapse the mask into one layer
         mask = (np.sum(mask, -1, keepdims=True) >= 1)
         splash = np.where(mask, image, gray).astype(np.uint8)
     else:
         splash = gray.astype(np.uint8)
     return splash
+
+def get_hsv(image, mask):
+    """
+    Get each pingpong ball's hsv color range
+    image: RGB image [height, width, 3]
+    mask: instance segmentation mask [height, width, instance count]
+
+    Returns a list of list of [h_up, s_up, v_up, h_down, s_down, v_down] for each mask
+    """
+    hsv_list = []
+    zeros = np.zeros((image.shape)) 
+    for i in range(mask.shape[-1]):
+        instance_mask = np.where(mask, image, zeros).astype(np.uint8)
+        hsv_mask = cv2.cvtColor(instance_mask, cv2.COLOR_BGR2HSV)
+        h_mask = hsv_mask[:, :, 0]
+        h_mask = h_mask[h_mask != 0]
+        h_up = np.nanmax(h_mask)
+        h_down = np.nanmin(h_mask)
+        s_mask = hsv_mask[:, :, 1]
+        s_mask = s_mask[s_mask != 0]
+        s_up = np.nanmax(s_mask)
+        s_down = np.nanmin(s_mask)
+        v_mask = hsv_mask[:, :, 2]
+        v_mask = v_mask[v_mask != 0]
+        v_up = np.nanmax(v_mask)
+        v_down = np.amin(v_mask)
+        hsv_list.append([h_up, h_down, s_up, s_down, v_up, v_down]) 
+    return hsv_list
 
 
 def detect_and_color_splash(model, image_path=None, video_path=None):
@@ -234,14 +264,18 @@ def detect_and_color_splash(model, image_path=None, video_path=None):
         # Read image
         image = skimage.io.imread(args.image)
         # Detect objects
+        t_start = time.time()
         r = model.detect([image], verbose=1)[0]
+        t_detect = time.time()
+        print('Detection time {}s'.format(t_detect - t_start))
         # Color splash
         splash = color_splash(image, r['masks'])
         # Save output
         file_name = "splash_{:%Y%m%dT%H%M%S}.png".format(datetime.datetime.now())
         skimage.io.imsave(file_name, splash)
+        print(get_hsv(image, r['masks']))
     elif video_path:
-        import cv2
+        
         # Video capture
         vcapture = cv2.VideoCapture(video_path)
         width = int(vcapture.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -329,7 +363,7 @@ if __name__ == '__main__':
             IMAGES_PER_GPU = 1
         config = InferenceConfig()
     config.display()
-
+    
     # Create model
     if args.command == "train":
         model = modellib.MaskRCNN(mode="training", config=config,
