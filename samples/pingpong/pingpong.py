@@ -72,7 +72,7 @@ class PingPongConfig(Config):
     NUM_CLASSES = 1 + 1  # Background + pingpong
 
     # Number of training steps per epoch
-    STEPS_PER_EPOCH = 100
+    STEPS_PER_EPOCH = 30
 
     # Skip detections with < 90% confidence
     DETECTION_MIN_CONFIDENCE = 0.9
@@ -166,7 +166,7 @@ class PingPongDataset(utils.Dataset):
             elif p['name'] == 'ellipse':
                 rr, cc = skimage.draw.ellipse(p['cy'], p['cx'], p['ry'], p['rx'])
                 mask[rr, cc, i] = 1
-            elif p['name'] == 'polygon':
+            elif p['name'] == 'polyline':
                 rr, cc = skimage.draw.polygon(p['all_points_y'], p['all_points_x'])
                 mask[rr, cc, i] = 1
 
